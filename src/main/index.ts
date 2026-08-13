@@ -2,32 +2,42 @@ import { app, BrowserWindow, dialog } from 'electron'
 import { join } from 'node:path'
 import { PRODUCT_NAME } from './app-info'
 import { spawnDsh, DshProcess } from './dsh-process'
+import { createTray, destroyTray, getTray } from './tray'
 
 let mainWindow: BrowserWindow | null = null
 let dsh: DshProcess | null = null
+let isQuitting = false
 
-/** Resolve the project root — in dev it's two levels up from out/main; in prod it's the app root. */
 function getAppRoot(): string {
-  // electron-vite builds main to out/main/index.js; project root is ../../
   return join(import.meta.dirname, '..', '..')
 }
 
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
+function createWindow(): BrowserWindow {
+  const win = new BrowserWindow({
     width: 1280,
     height: 800,
     title: PRODUCT_NAME,
     autoHideMenuBar: true,
-    show: false, // don't show until dsh is ready
+    show: false,
   })
 
-  mainWindow.on('closed', () => {
+  win.on('close', (event) => {
+    // On macOS and when tray is active: hide instead of close
+    if (!isQuitting) {
+      event.preventDefault()
+      win.hide()
+    }
+  })
+
+  win.on('closed', () => {
     mainWindow = null
   })
+
+  return win
 }
 
 async function startDshAndLoad(): Promise<void> {
-  createWindow()
+  mainWindow = createWindow()
 
   try {
     dsh = await spawnDsh({ appRoot: getAppRoot() })
@@ -40,13 +50,18 @@ async function startDshAndLoad(): Promise<void> {
     return
   }
 
-  // dsh is ready — load the URL
   if (mainWindow && dsh.url) {
     void mainWindow.loadURL(dsh.url)
     mainWindow.show()
   }
 
-  // If dsh exits unexpectedly, notify the user
+  // Create tray after window is ready
+  createTray(mainWindow, () => {
+    isQuitting = true
+    dsh?.kill()
+    app.quit()
+  })
+
   dsh.on('exit', (code: number | null) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       dialog.showErrorBox(
@@ -54,29 +69,46 @@ async function startDshAndLoad(): Promise<void> {
         `DeepSeek Harness 进程意外退出 (code=${code})。\n应用将关闭。`
       )
     }
+    isQuitting = true
     app.quit()
   })
 }
 
-app.whenReady().then(() => {
-  void startDshAndLoad()
+// ── Single instance lock ──────────────────────────────────────────────
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
 
-  app.on('activate', () => {
-    // macOS: re-create window when dock icon is clicked
-    if (mainWindow === null) {
-      void startDshAndLoad()
+if (!gotSingleInstanceLock) {
+  // Another instance is already running — quit
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    // A second instance tried to start — focus the existing window
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
     }
   })
-})
 
-app.on('window-all-closed', () => {
-  // On macOS, keep the app alive (tray behavior arrives later)
-  if (process.platform !== 'darwin') {
+  app.whenReady().then(() => {
+    void startDshAndLoad()
+
+    app.on('activate', () => {
+      if (mainWindow === null) {
+        void startDshAndLoad()
+      } else {
+        mainWindow.show()
+      }
+    })
+  })
+
+  app.on('window-all-closed', () => {
+    // Keep the app alive — tray handles visibility
+  })
+
+  app.on('before-quit', () => {
+    isQuitting = true
     dsh?.kill()
-    app.quit()
-  }
-})
-
-app.on('before-quit', () => {
-  dsh?.kill()
-})
+    destroyTray()
+  })
+}
