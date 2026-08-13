@@ -62,6 +62,7 @@ export function spawnDsh(options: SpawnOptions): Promise<DshProcess> {
 
     let resolved = false
     let stdoutBuf = ''
+    let stderrBuf = ''
 
     child.stdout!.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
@@ -80,7 +81,9 @@ export function spawnDsh(options: SpawnOptions): Promise<DshProcess> {
     })
 
     child.stderr!.on('data', (chunk: Buffer) => {
-      process.stderr.write('[dsh:err] ' + chunk.toString())
+      const text = chunk.toString()
+      stderrBuf += text
+      process.stderr.write('[dsh:err] ' + text)
     })
 
     child.on('error', (err) => {
@@ -93,11 +96,8 @@ export function spawnDsh(options: SpawnOptions): Promise<DshProcess> {
     child.on('exit', (code, signal) => {
       if (!resolved) {
         resolved = true
-        reject(
-          new Error(
-            `dsh exited before printing ready line (code=${code}, signal=${signal})`
-          )
-        )
+        const detail = stderrBuf.trim() || `exit code=${code}, signal=${signal}`
+        reject(new Error(`dsh exited before printing ready line:\n${detail}`))
       }
       emitter.emit('exit', code, signal)
     })

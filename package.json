@@ -39,10 +39,7 @@
     },
     "files": [
       "out/**/*",
-      "node_modules/@deepseek-ai/**/*",
-      "node_modules/js-yaml/**/*",
-      "node_modules/comma-separated-tokens/**/*",
-      "node_modules/space-separated-tokens/**/*"
+      "node_modules/**/*"
     ],
     "win": {
       "target": [
