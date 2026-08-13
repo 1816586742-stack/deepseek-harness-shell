@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { PRODUCT_NAME } from './app-info'
 import { spawnDsh, DshProcess } from './dsh-process'
 import { createTray, destroyTray, getTray } from './tray'
+import { registerSettingsIpc } from './settings-window'
+import { initSettings } from './settings'
 
 let mainWindow: BrowserWindow | null = null
 let dsh: DshProcess | null = null
@@ -91,6 +93,8 @@ if (!gotSingleInstanceLock) {
   })
 
   app.whenReady().then(() => {
+    registerSettingsIpc()
+    initSettings()
     void startDshAndLoad()
 
     app.on('activate', () => {

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'" />
+    <title>DSH Shell — 设置</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        padding: 24px;
+        background: #f7f7f8;
+        color: #333;
+        font-size: 14px;
+      }
+      h1 { font-size: 18px; margin-bottom: 20px; }
+      .setting-group { margin-bottom: 20px; }
+      .setting-group label { display: block; font-weight: 600; margin-bottom: 8px; }
+      .radio-group { display: flex; gap: 16px; }
+      .radio-group label { font-weight: normal; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+      .toggle-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 12px 16px; background: #fff; border-radius: 8px; border: 1px solid #e0e0e0;
+      }
+      .toggle-row span { font-weight: 500; }
+      .hint { color: #888; font-size: 12px; margin-top: 4px; }
+      .saved { color: #2da44e; font-size: 12px; margin-top: 8px; opacity: 0; transition: opacity 0.3s; }
+      .saved.show { opacity: 1; }
+    </style>
+  </head>
+  <body>
+    <h1>DSH Shell 设置</h1>
+
+    <div class="setting-group">
+      <label>开机自启</label>
+      <div class="toggle-row">
+        <span>登录时自动启动</span>
+        <input type="checkbox" id="launchAtLogin" />
+      </div>
+      <div class="hint">默认关闭。开启后系统登录时自动启动应用(最小化到托盘)。</div>
+    </div>
+
+    <div class="setting-group">
+      <label>界面语言</label>
+      <div class="radio-group">
+        <label><input type="radio" name="language" value="system" /> 跟随系统</label>
+        <label><input type="radio" name="language" value="zh" /> 中文</label>
+        <label><input type="radio" name="language" value="en" /> English</label>
+      </div>
+      <div class="hint">强制选择后重启应用生效。</div>
+    </div>
+
+    <div class="saved" id="saved">✓ 已保存</div>
+
+    <script>
+      const { ipcRenderer } = require('electron');
+
+      async function load() {
+        const settings = await ipcRenderer.invoke('settings:get');
+        document.getElementById('launchAtLogin').checked = settings.launchAtLogin;
+        document.querySelector(`input[name="language"][value="${settings.language}"]`).checked = true;
+      }
+
+      async function save() {
+        const settings = {
+          launchAtLogin: document.getElementById('launchAtLogin').checked,
+          language: document.querySelector('input[name="language"]:checked').value,
+        };
+        await ipcRenderer.invoke('settings:set', settings);
+        // Show saved indicator
+        const el = document.getElementById('saved');
+        el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), 1500);
+      }
+
+      document.getElementById('launchAtLogin').addEventListener('change', save);
+      document.querySelectorAll('input[name="language"]').forEach(r => r.addEventListener('change', save));
+
+      load();
+    </script>
+  </body>
+</html>

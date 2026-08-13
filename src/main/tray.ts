@@ -2,6 +2,7 @@ import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { PRODUCT_NAME } from './app-info'
+import { openSettingsWindow } from './settings-window'
 
 /** Resolve the tray icon path — prefers 16x16 for tray, falls back to app icon. */
 function getTrayIconPath(): string {
@@ -34,6 +35,12 @@ export function createTray(mainWindow: BrowserWindow, onQuit: () => void): void 
       click: () => {
         mainWindow.show()
         mainWindow.focus()
+      },
+    },
+    {
+      label: '设置',
+      click: () => {
+        openSettingsWindow()
       },
     },
     { type: 'separator' },
